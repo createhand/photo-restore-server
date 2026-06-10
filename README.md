@@ -131,6 +131,7 @@ curl -X POST http://localhost:8010/restore \
   - `./api/input:/app/input`
   - `./api/output:/app/output`
 - GPU 예약: NVIDIA runtime 기반 GPU 1개 사용
+- Real-ESRGAN은 기본 `REAL_ESRGAN_TILE=512`로 타일 처리합니다. 큰 해상도 이미지가 CUDA OOM을 내면 값을 `256`으로 낮추고, 더 빠른 처리가 필요하고 VRAM 여유가 있으면 `768` 또는 `0`으로 조정할 수 있습니다.
 
 ## 워커 구조
 
@@ -138,6 +139,7 @@ curl -X POST http://localhost:8010/restore \
 - 실제 GPU 추론은 `worker.py`의 단일 워커에서 수행합니다.
 - 기본값은 `MAX_GPU_WORKERS=1` 이며 동시 GPU 실행을 막습니다.
 - 기본 업로드 제한은 `MAX_UPLOAD_BYTES=26214400` 입니다.
+- 기본 업스케일 타일 크기는 `REAL_ESRGAN_TILE=512` 입니다.
 - 향후 Redis, Celery, RQ 같은 외부 큐로 확장할 수 있도록 분리돼 있습니다.
 
 ## 향후 확장 예정

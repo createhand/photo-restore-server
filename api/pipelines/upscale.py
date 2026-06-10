@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import cv2
@@ -15,6 +16,8 @@ class UpscalePipeline:
     def __init__(self, model_dir: str | Path, device: str | None = None) -> None:
         self.model_dir = ensure_dir(model_dir)
         self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.tile = int(os.getenv("REAL_ESRGAN_TILE", "512"))
+        self.tile_pad = int(os.getenv("REAL_ESRGAN_TILE_PAD", "10"))
         self._upsamplers: dict[int, RealESRGANer] = {}
 
     def _create_model(self, outscale: int) -> RealESRGANer:
@@ -43,8 +46,8 @@ class UpscalePipeline:
             model_path=str(model_path),
             dni_weight=None,
             model=model,
-            tile=0,
-            tile_pad=10,
+            tile=self.tile,
+            tile_pad=self.tile_pad,
             pre_pad=0,
             half=half,
             gpu_id=0 if half else None,

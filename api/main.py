@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from pathlib import Path
 
@@ -12,6 +13,7 @@ from pipelines.utils import build_job_paths, ensure_dir, remove_files, validate_
 from worker import worker
 
 APP_NAME = "photo-restore-server"
+logger = logging.getLogger(APP_NAME)
 MODEL_DIR = Path(os.getenv("MODEL_DIR", "/app/models"))
 INPUT_DIR = ensure_dir(os.getenv("INPUT_DIR", "/app/input"))
 OUTPUT_DIR = ensure_dir(os.getenv("OUTPUT_DIR", "/app/output"))
@@ -110,6 +112,7 @@ async def restore_endpoint(
     except HTTPException:
         raise
     except Exception as exc:
+        logger.exception("restore failed")
         remove_files(
             [
                 path

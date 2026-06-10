@@ -14,6 +14,8 @@ services:
       INPUT_DIR: /app/input
       OUTPUT_DIR: /app/output
       MAX_UPLOAD_BYTES: "26214400"
+      REAL_ESRGAN_TILE: "512"
+      REAL_ESRGAN_TILE_PAD: "10"
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./api/models:/app/models
