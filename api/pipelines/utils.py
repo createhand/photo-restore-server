@@ -25,11 +25,16 @@ def sanitize_filename(filename: str) -> str:
     return f"{safe_stem}{suffix}"
 
 
-def build_job_paths(input_dir: str | Path, output_dir: str | Path, filename: str) -> tuple[Path, Path, str]:
+def build_job_paths(
+    input_dir: str | Path,
+    output_dir: str | Path,
+    filename: str,
+    output_suffix: str = ".jpg",
+) -> tuple[Path, Path, str]:
     safe_name = sanitize_filename(filename)
     job_id = uuid.uuid4().hex
     input_path = ensure_dir(input_dir) / f"{job_id}_{safe_name}"
-    output_path = ensure_dir(output_dir) / f"{job_id}_restored.png"
+    output_path = ensure_dir(output_dir) / f"{job_id}_restored{output_suffix}"
     return input_path, output_path, job_id
 
 

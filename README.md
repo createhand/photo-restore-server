@@ -33,9 +33,10 @@ photo-restore-server/
 ## 지원 기능
 
 - `POST /restore` 멀티파트 이미지 업로드
-- `mode` 옵션 지원: `face`, `upscale`, `full`, `safe`, `pretty`
+- `mode` 옵션 지원: `face`, `upscale`, `full`, `safe`, `pretty`, `restore`, `enhance`
 - `upscale` 옵션 지원: `1`, `2`, `4`
 - `fidelity` 옵션 지원: `0.0 ~ 1.0`
+- 출력 포맷 지원: `jpg`, `webp`, `png` (`format`, `quality`)
 - 업로드 크기 제한 지원: 기본 25MB (`MAX_UPLOAD_BYTES`)
 - GPU 단일 워커 큐 기반 처리
 - 결과 이미지 `api/output/` 저장
@@ -88,10 +89,12 @@ curl http://localhost:8010/ready
 ```bash
 curl -X POST http://localhost:8010/restore \
 -F "file=@test.jpg" \
--F "mode=full" \
+-F "mode=enhance" \
 -F "upscale=2" \
 -F "fidelity=0.7" \
---output restored.png
+-F "format=jpg" \
+-F "quality=92" \
+--output restored.jpg
 ```
 
 ## API 사양
@@ -101,19 +104,24 @@ curl -X POST http://localhost:8010/restore \
 #### Form Data
 
 - `file`: 입력 이미지 파일
-- `mode`: `face`, `upscale`, `full`, `safe`, `pretty`
+- `mode`: `face`, `upscale`, `full`, `safe`, `pretty`, `restore`, `enhance`
 - `upscale`: `1`, `2`, `4`
 - `fidelity`: `0.0 ~ 1.0`
+- `format`: `jpg`, `jpeg`, `webp`, `png` (기본값: `jpg`)
+- `quality`: `1 ~ 100` (기본값: `92`, `jpg`/`webp`에서 사용)
 
 #### mode 동작
 
 - `face`: GFPGAN 얼굴 복원만 수행
 - `upscale`: Real-ESRGAN 업스케일만 수행
-- `full`: GFPGAN 후 Real-ESRGAN 수행
-- `safe`: 낮은 강도의 얼굴 복원 후 업스케일 수행
-- `pretty`: 높은 강도의 얼굴 복원 후 업스케일 수행
+- `full`: 배경을 약하게 보정한 뒤 GFPGAN 얼굴 복원 후 Real-ESRGAN 수행
+- `restore`: `full`과 동일한 현실적 이름의 alias
+- `safe`: 낮은 강도의 배경/얼굴 복원 후 업스케일 수행
+- `pretty`: 높은 강도의 배경/얼굴 복원 후 업스케일 수행
+- `enhance`: `pretty`와 동일한 고강도 보정 alias
 
-`face` 모드는 입력 해상도를 유지합니다. `full`, `safe`, `pretty` 모드에서는 얼굴 복원 후 `upscale` 값이 최종 업스케일 배율로 적용됩니다.
+`face` 모드는 입력 해상도를 유지합니다. `full`, `safe`, `pretty`, `restore`, `enhance` 모드에서는 얼굴 복원 후 `upscale` 값이 최종 업스케일 배율로 적용됩니다.
+기본 출력은 사진에 적합한 `jpg`이며, 무손실 결과가 필요할 때만 `format=png`를 사용하세요.
 
 #### 응답
 

@@ -18,8 +18,14 @@ MODEL_DIR = Path(os.getenv("MODEL_DIR", "/app/models"))
 INPUT_DIR = ensure_dir(os.getenv("INPUT_DIR", "/app/input"))
 OUTPUT_DIR = ensure_dir(os.getenv("OUTPUT_DIR", "/app/output"))
 MAX_UPLOAD_BYTES = int(os.getenv("MAX_UPLOAD_BYTES", str(25 * 1024 * 1024)))
-VALID_MODES = {"face", "upscale", "full", "safe", "pretty"}
+VALID_MODES = {"face", "upscale", "full", "safe", "pretty", "restore", "enhance"}
 VALID_UPSCALES = {1, 2, 4}
+OUTPUT_FORMATS = {
+    "jpg": (".jpg", "image/jpeg"),
+    "jpeg": (".jpg", "image/jpeg"),
+    "png": (".png", "image/png"),
+    "webp": (".webp", "image/webp"),
+}
 ALLOWED_CONTENT_TYPES = {
     "image/bmp",
     "image/jpeg",
@@ -82,7 +88,11 @@ async def restore_endpoint(
     mode: str = Form("full"),
     upscale: int = Form(2),
     fidelity: float = Form(0.7),
+    format: str = Form("jpg"),
+    output_format: str | None = Form(None),
+    quality: int = Form(92),
 ):
+    output_format = (output_format or format).lower()
     if not file.filename:
         raise HTTPException(status_code=400, detail="file is required")
     if mode not in VALID_MODES:
@@ -91,13 +101,23 @@ async def restore_endpoint(
         raise HTTPException(status_code=400, detail="upscale must be one of 1, 2, 4")
     if not 0.0 <= fidelity <= 1.0:
         raise HTTPException(status_code=400, detail="fidelity must be between 0.0 and 1.0")
+    if output_format not in OUTPUT_FORMATS:
+        raise HTTPException(status_code=400, detail=f"format must be one of {sorted(OUTPUT_FORMATS)}")
+    if not 1 <= quality <= 100:
+        raise HTTPException(status_code=400, detail="quality must be between 1 and 100")
 
     try:
-        input_path, output_path, _ = build_job_paths(INPUT_DIR, OUTPUT_DIR, file.filename)
+        output_suffix, media_type = OUTPUT_FORMATS[output_format]
+        input_path, output_path, _ = build_job_paths(
+            INPUT_DIR,
+            OUTPUT_DIR,
+            file.filename,
+            output_suffix=output_suffix,
+        )
         contents = await read_upload(file)
         input_path.write_bytes(contents)
 
-        future = worker.submit(input_path, output_path, mode, upscale, fidelity)
+        future = worker.submit(input_path, output_path, mode, upscale, fidelity, quality)
         result_path = Path(await run_in_threadpool(future.result))
 
         if not result_path.exists():
@@ -105,7 +125,7 @@ async def restore_endpoint(
 
         return FileResponse(
             path=result_path,
-            media_type="image/png",
+            media_type=media_type,
             filename=result_path.name,
             background=BackgroundTask(remove_files, [input_path]),
         )

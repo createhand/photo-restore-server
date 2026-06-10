@@ -83,8 +83,17 @@ def load_image(path: str | Path) -> np.ndarray:
     return image
 
 
-def save_image(path: str | Path, image_bgr: np.ndarray) -> None:
+def save_image(path: str | Path, image_bgr: np.ndarray, quality: int = 92) -> None:
     ensure_dir(Path(path).parent)
-    success = cv2.imwrite(str(path), image_bgr)
+    suffix = Path(path).suffix.lower()
+    params: list[int] = []
+    if suffix in {".jpg", ".jpeg"}:
+        params = [int(cv2.IMWRITE_JPEG_QUALITY), quality]
+    elif suffix == ".webp":
+        params = [int(cv2.IMWRITE_WEBP_QUALITY), quality]
+    elif suffix == ".png":
+        params = [int(cv2.IMWRITE_PNG_COMPRESSION), 3]
+
+    success = cv2.imwrite(str(path), image_bgr, params)
     if not success:
         raise ValueError(f"Failed to save image: {path}")

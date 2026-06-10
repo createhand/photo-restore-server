@@ -14,7 +14,15 @@ class RestoreWorker:
     def __init__(self, max_workers: int = MAX_GPU_WORKERS) -> None:
         self.executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix="gpu-worker")
 
-    def submit(self, input_path: str | Path, output_path: str | Path, mode: str, upscale: int, fidelity: float) -> Future:
+    def submit(
+        self,
+        input_path: str | Path,
+        output_path: str | Path,
+        mode: str,
+        upscale: int,
+        fidelity: float,
+        output_quality: int,
+    ) -> Future:
         return self.executor.submit(
             restore_image,
             str(input_path),
@@ -22,6 +30,7 @@ class RestoreWorker:
             mode,
             upscale,
             fidelity,
+            output_quality,
             MODEL_DIR,
         )
 
