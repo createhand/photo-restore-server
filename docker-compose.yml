@@ -1,0 +1,29 @@
+services:
+  photo-restore-api:
+    container_name: photo-restore-api
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    ports:
+      - "8010:8010"
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+      MAX_GPU_WORKERS: "1"
+      MODEL_DIR: /app/models
+      INPUT_DIR: /app/input
+      OUTPUT_DIR: /app/output
+      MAX_UPLOAD_BYTES: "26214400"
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./api/models:/app/models
+      - ./api/input:/app/input
+      - ./api/output:/app/output
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
