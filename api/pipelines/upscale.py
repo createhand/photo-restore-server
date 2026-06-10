@@ -36,6 +36,7 @@ class UpscalePipeline:
                 f"Missing Real-ESRGAN model file: {model_path}. Place the weight file in /app/models"
             )
 
+        model_path = self._ensure_realesrgan_checkpoint(model_path)
         half = self.device.startswith("cuda")
         return RealESRGANer(
             scale=outscale,
@@ -48,6 +49,16 @@ class UpscalePipeline:
             half=half,
             gpu_id=0 if half else None,
         )
+
+    def _ensure_realesrgan_checkpoint(self, model_path: Path) -> Path:
+        checkpoint = torch.load(model_path, map_location=torch.device("cpu"))
+        if isinstance(checkpoint, dict) and ("params" in checkpoint or "params_ema" in checkpoint):
+            return model_path
+
+        converted_path = model_path.with_name(f"{model_path.stem}.checkpoint.pth")
+        if not converted_path.exists():
+            torch.save({"params": checkpoint}, converted_path)
+        return converted_path
 
     def get_upsampler(self, outscale: int) -> RealESRGANer:
         if outscale not in self._upsamplers:

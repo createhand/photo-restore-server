@@ -124,7 +124,8 @@ curl -X POST http://localhost:8010/restore \
 
 - 서비스명: `photo-restore-api`
 - 포트: `8010:8010`
-- 베이스 이미지: `nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04`
+- 베이스 이미지: `nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04`
+- PyTorch: CUDA 12.8 wheel 사용. RTX 50 시리즈는 `sm_120` 지원이 필요하므로 CUDA 12.4 wheel에서는 추론이 실패합니다.
 - 볼륨:
   - `./api/models:/app/models`
   - `./api/input:/app/input`

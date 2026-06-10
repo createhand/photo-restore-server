@@ -1,4 +1,4 @@
-FROM nvidia/cuda:12.4.1-cudnn-runtime-ubuntu22.04
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04
 
 ENV DEBIAN_FRONTEND=noninteractive \
     PIP_NO_CACHE_DIR=1 \
@@ -25,7 +25,7 @@ RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
 WORKDIR /app
 
 COPY requirements.txt /app/requirements.txt
-RUN python -m pip install --extra-index-url https://download.pytorch.org/whl/cu124 -r /app/requirements.txt
+RUN python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r /app/requirements.txt
 RUN python - <<'PY'
 from pathlib import Path
 
