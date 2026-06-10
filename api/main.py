@@ -37,6 +37,12 @@ REQUIRED_MODELS = (
     "RealESRGAN_x2.pth",
     "RealESRGAN_x4.pth",
 )
+OPTIONAL_MODELS = {
+    "codeformer": ("CodeFormer.pth", "codeformer.pth"),
+    "swinir": ("SwinIR-M_x4_GAN.pth", "003_realSR_BSRGAN_DFOWMFC_s64w8_SwinIR-M_x4_GAN.pth"),
+}
+VALID_FACE_MODELS = {"auto", "gfpgan", "codeformer"}
+VALID_BG_MODELS = {"auto", "swinir", "light", "none"}
 
 app = FastAPI(title=APP_NAME, version="1.0.0")
 
@@ -49,12 +55,17 @@ def health() -> dict[str, str]:
 @app.get("/ready")
 def ready():
     missing_models = [name for name in REQUIRED_MODELS if not (MODEL_DIR / name).exists()]
+    optional_models = {
+        key: any((MODEL_DIR / name).exists() for name in names)
+        for key, names in OPTIONAL_MODELS.items()
+    }
     status_code = 200 if not missing_models else 503
     content = {
         "status": "ok" if not missing_models else "degraded",
         "service": APP_NAME,
         "models_ready": not missing_models,
         "missing_models": missing_models,
+        "optional_models": optional_models,
     }
     return JSONResponse(status_code=status_code, content=content)
 
@@ -88,11 +99,16 @@ async def restore_endpoint(
     mode: str = Form("full"),
     upscale: int = Form(2),
     fidelity: float = Form(0.7),
+    face_model: str = Form("auto"),
+    face_weight: float | None = Form(None),
+    bg_model: str = Form("auto"),
     format: str = Form("jpg"),
     output_format: str | None = Form(None),
     quality: int = Form(92),
 ):
     output_format = (output_format or format).lower()
+    face_model = face_model.lower()
+    bg_model = bg_model.lower()
     if not file.filename:
         raise HTTPException(status_code=400, detail="file is required")
     if mode not in VALID_MODES:
@@ -101,6 +117,12 @@ async def restore_endpoint(
         raise HTTPException(status_code=400, detail="upscale must be one of 1, 2, 4")
     if not 0.0 <= fidelity <= 1.0:
         raise HTTPException(status_code=400, detail="fidelity must be between 0.0 and 1.0")
+    if face_model not in VALID_FACE_MODELS:
+        raise HTTPException(status_code=400, detail=f"face_model must be one of {sorted(VALID_FACE_MODELS)}")
+    if face_weight is not None and not 0.0 <= face_weight <= 1.0:
+        raise HTTPException(status_code=400, detail="face_weight must be between 0.0 and 1.0")
+    if bg_model not in VALID_BG_MODELS:
+        raise HTTPException(status_code=400, detail=f"bg_model must be one of {sorted(VALID_BG_MODELS)}")
     if output_format not in OUTPUT_FORMATS:
         raise HTTPException(status_code=400, detail=f"format must be one of {sorted(OUTPUT_FORMATS)}")
     if not 1 <= quality <= 100:
@@ -117,7 +139,17 @@ async def restore_endpoint(
         contents = await read_upload(file)
         input_path.write_bytes(contents)
 
-        future = worker.submit(input_path, output_path, mode, upscale, fidelity, quality)
+        future = worker.submit(
+            input_path,
+            output_path,
+            mode,
+            upscale,
+            fidelity,
+            quality,
+            face_model,
+            face_weight,
+            bg_model,
+        )
         result_path = Path(await run_in_threadpool(future.result))
 
         if not result_path.exists():

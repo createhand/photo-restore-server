@@ -22,6 +22,9 @@ class RestoreWorker:
         upscale: int,
         fidelity: float,
         output_quality: int,
+        face_model: str = "auto",
+        face_weight: float | None = None,
+        bg_model: str = "auto",
     ) -> Future:
         return self.executor.submit(
             restore_image,
@@ -32,6 +35,9 @@ class RestoreWorker:
             fidelity,
             output_quality,
             MODEL_DIR,
+            face_model,
+            face_weight,
+            bg_model,
         )
 
 

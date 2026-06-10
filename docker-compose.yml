@@ -16,6 +16,10 @@ services:
       MAX_UPLOAD_BYTES: "26214400"
       REAL_ESRGAN_TILE: "512"
       REAL_ESRGAN_TILE_PAD: "10"
+      SWINIR_TILE: "256"
+      SWINIR_TILE_OVERLAP: "32"
+      MAX_INPUT_LONG_SIDE: "3600"
+      MAX_OUTPUT_PIXELS: "40000000"
       PYTHONUNBUFFERED: "1"
     volumes:
       - ./api/models:/app/models
