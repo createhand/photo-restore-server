@@ -1,0 +1,52 @@
+# RunPod Serverless 전용 이미지.
+# 기존 Dockerfile(FastAPI/uvicorn)과 동일한 복원 파이프라인을 쓰되,
+# 진입점만 RunPod Serverless 핸들러(handler.py)로 바꾼 변형입니다.
+FROM nvidia/cuda:12.8.1-cudnn-runtime-ubuntu22.04
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    PIP_NO_CACHE_DIR=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    python3 \
+    python3-pip \
+    python3-dev \
+    git \
+    ffmpeg \
+    libgl1 \
+    libglib2.0-0 \
+    libsm6 \
+    libxext6 \
+    libxrender1 \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN update-alternatives --install /usr/bin/python python /usr/bin/python3 1 && \
+    python -m pip install --upgrade pip setuptools wheel
+
+WORKDIR /app
+
+COPY requirements.txt /app/requirements.txt
+COPY requirements-runpod.txt /app/requirements-runpod.txt
+RUN python -m pip install --extra-index-url https://download.pytorch.org/whl/cu128 -r /app/requirements.txt && \
+    python -m pip install -r /app/requirements-runpod.txt
+RUN python - <<'PY'
+from pathlib import Path
+
+import torchvision.transforms
+
+shim_path = Path(torchvision.transforms.__file__).parent / "functional_tensor.py"
+if not shim_path.exists():
+    shim_path.write_text(
+        "from torchvision.transforms.functional import rgb_to_grayscale\n",
+        encoding="utf-8",
+    )
+PY
+
+COPY . /app
+
+RUN mkdir -p /app/models /app/input /app/output
+
+# RunPod Serverless 워커 진입점
+CMD ["python", "-u", "handler.py"]

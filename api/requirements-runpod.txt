@@ -1,0 +1,3 @@
+# RunPod Serverless 핸들러에서만 추가로 필요한 의존성.
+# 기본 추론 의존성은 requirements.txt 를 그대로 사용합니다.
+runpod==1.7.7

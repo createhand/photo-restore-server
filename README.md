@@ -132,6 +132,89 @@ curl -X POST http://localhost:8010/restore \
 --output restored.jpg
 ```
 
+## 클라우드 GPU 배포 (RunPod / Vast)
+
+자체 GPU 워크스테이션을 상시 켜 두지 않고도 복원을 돌릴 수 있도록 두 가지 배포 형태를 지원합니다.
+modoo-studio 클라이언트(`lib/photo-restore.ts`)는 `PHOTO_RESTORE_PROVIDER` 환경변수로 두 방식을 전환합니다.
+
+### 방식 A — HTTP 서버 (Vast.ai / RunPod Pod / 자체 GPU)
+
+기존 FastAPI 서버(`docker compose up`)를 클라우드 GPU 인스턴스에 그대로 띄우는 방식입니다.
+Vast.ai 인스턴스나 RunPod Pod에서 이 저장소를 빌드해 `8010` 포트를 노출하면 됩니다.
+
+클라이언트 환경변수:
+
+```bash
+PHOTO_RESTORE_PROVIDER=http
+PHOTO_RESTORE_URL=https://<인스턴스-호스트>:8010
+# 인스턴스를 인터넷에 노출한다면 토큰 인증을 권장
+PHOTO_RESTORE_AUTH_TOKEN=<공유-시크릿>
+```
+
+`PHOTO_RESTORE_AUTH_TOKEN`을 설정하면 요청에 `Authorization: Bearer <토큰>` 헤더가 붙습니다.
+서버 앞단(리버스 프록시 등)에서 같은 토큰을 검사하도록 구성하세요. 나중에 자체 GPU 서버로
+되돌릴 때도 `PHOTO_RESTORE_URL`만 사내 주소로 바꾸면 됩니다.
+
+### 방식 B — RunPod Serverless (scale-to-zero, 권장)
+
+요청이 없을 때 0으로 축소돼 유휴 비용이 들지 않는 방식입니다. 전기/상시가동 부담 없이
+호출당 과금으로 운영할 수 있어 평소 트래픽이 적은 서비스에 적합합니다.
+
+진입점은 `api/handler.py`(RunPod Serverless 핸들러)이며, FastAPI와 **동일한 복원 파이프라인**을 재사용합니다.
+
+빌드 & 배포:
+
+```bash
+# Serverless 전용 이미지 빌드 (handler.py 진입점)
+docker build -f api/Dockerfile.runpod -t <레지스트리>/photo-restore-runpod:latest api
+docker push <레지스트리>/photo-restore-runpod:latest
+```
+
+RunPod 콘솔에서 위 이미지를 Serverless Endpoint로 등록하고, 모델 가중치는 Network Volume을
+`/app/models`에 마운트하세요(컨테이너 이미지에 가중치를 굽지 않는 것을 권장).
+
+요청 형식(`POST https://api.runpod.ai/v2/<endpoint-id>/runsync`):
+
+```json
+{
+  "input": {
+    "image_base64": "<원본 이미지 base64>",
+    "mode": "enhance",
+    "upscale": 2,
+    "fidelity": 0.7,
+    "face_model": "auto",
+    "bg_model": "auto",
+    "format": "jpg",
+    "quality": 92
+  }
+}
+```
+
+응답:
+
+```json
+{
+  "output": {
+    "image_base64": "<복원 결과 base64>",
+    "format": "jpg",
+    "content_type": "image/jpeg"
+  }
+}
+```
+
+클라이언트 환경변수:
+
+```bash
+PHOTO_RESTORE_PROVIDER=runpod
+PHOTO_RESTORE_RUNPOD_ENDPOINT=<endpoint-id>
+RUNPOD_API_KEY=<runpod-api-key>
+# 선택: 콜드스타트가 길 수 있으므로 타임아웃을 넉넉히
+PHOTO_RESTORE_TIMEOUT_MS=120000
+```
+
+> 콜드스타트: Serverless는 첫 요청 시 컨테이너/모델 로딩으로 수십 초가 걸릴 수 있습니다.
+> RunPod의 Active Workers(min workers)를 1로 두면 콜드스타트를 줄이는 대신 약간의 상시 비용이 듭니다.
+
 ## API 사양
 
 ### `POST /restore`
