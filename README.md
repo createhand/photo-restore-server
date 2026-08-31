@@ -9,8 +9,9 @@ RTX 5070 Ti 16GB Linux 워크스테이션에서 동작하는 Docker 기반 사�
 3. 배경/전체 복원: SwinIR 또는 경량 보정 (`bg_model`)
 4. 얼굴 복원: GFPGAN 또는 CodeFormer (`face_model`)
 5. Real-ESRGAN 최종 업스케일
-6. 출력 픽셀 수 자동 제한 (`MAX_OUTPUT_PIXELS`)
-7. JPEG/WebP/PNG 저장 후 API 응답 반환
+6. 3MP 초과 사진의 기본 2배 업스케일 자동 생략 (`AUTO_2X_MAX_INPUT_PIXELS`)
+7. 출력 픽셀 수 자동 제한 (`MAX_OUTPUT_PIXELS`)
+8. JPEG/WebP/PNG 저장 후 API 응답 반환
 
 ## 프로젝트 구조
 
@@ -49,6 +50,7 @@ photo-restore-server/
 - 출력 포맷 지원: `jpg`, `webp`, `png` (`format`, `quality`)
 - 업로드 크기 제한 지원: 기본 25MB (`MAX_UPLOAD_BYTES`)
 - 입력 작업 해상도 제한: 기본 장변 3600px (`MAX_INPUT_LONG_SIDE`)
+- 기본 2배 확대 적용 상한: 입력 3MP 이하 (`AUTO_2X_MAX_INPUT_PIXELS`)
 - 출력 픽셀 수 제한: 기본 40MP (`MAX_OUTPUT_PIXELS`)
 - GPU 단일 워커 큐 기반 처리
 - 결과 이미지 `api/output/` 저장
@@ -115,7 +117,7 @@ curl -X POST http://localhost:8010/restore \
 -F "upscale=2" \
 -F "fidelity=0.7" \
 -F "format=jpg" \
--F "quality=92" \
+-F "quality=90" \
 --output restored.jpg
 ```
 
@@ -185,7 +187,7 @@ RunPod 콘솔에서 위 이미지를 Serverless Endpoint로 등록하고, 모델
     "face_model": "auto",
     "bg_model": "auto",
     "format": "jpg",
-    "quality": 92
+    "quality": 90
   }
 }
 ```
@@ -229,7 +231,7 @@ PHOTO_RESTORE_TIMEOUT_MS=120000
 - `face_weight`: `0.0 ~ 1.0` (지정 시 `fidelity` 대신 얼굴 복원 가중치로 사용)
 - `bg_model`: `auto`, `swinir`, `light`, `none` (기본값: `auto`)
 - `format`: `jpg`, `jpeg`, `webp`, `png` (기본값: `jpg`)
-- `quality`: `1 ~ 100` (기본값: `92`, `jpg`/`webp`에서 사용)
+- `quality`: `1 ~ 100` (기본값: `90`, `jpg`/`webp`에서 사용)
 
 #### mode 동작
 
@@ -241,7 +243,7 @@ PHOTO_RESTORE_TIMEOUT_MS=120000
 - `pretty`: 높은 강도의 배경/얼굴 복원 후 업스케일 수행
 - `enhance`: `pretty`와 동일한 고강도 보정 alias
 
-`face` 모드는 입력 해상도를 유지합니다. `full`, `safe`, `pretty`, `restore`, `enhance` 모드에서는 얼굴 복원 후 `upscale` 값이 최종 업스케일 배율로 적용됩니다.
+`face` 모드는 입력 해상도를 유지합니다. `full`, `safe`, `pretty`, `restore`, `enhance` 모드에서 기본 `upscale=2`를 요청하더라도 입력이 3MP를 초과하면 자동으로 1배 처리가 적용됩니다. `mode=upscale` 또는 명시적인 `upscale=4` 요청은 그대로 유지됩니다.
 기본 출력은 사진에 적합한 `jpg`이며, 무손실 결과가 필요할 때만 `format=png`를 사용하세요.
 
 #### face_model 동작

@@ -104,7 +104,7 @@ async def restore_endpoint(
     bg_model: str = Form("auto"),
     format: str = Form("jpg"),
     output_format: str | None = Form(None),
-    quality: int = Form(92),
+    quality: int = Form(90),
 ):
     output_format = (output_format or format).lower()
     face_model = face_model.lower()

@@ -11,6 +11,7 @@ import torch
 from gfpgan import GFPGANer
 
 from .codeformer import CodeFormerRestorer
+from .sizing import resolve_effective_upscale
 from .swinir import SwinIRPipeline
 from .upscale import UpscalePipeline, load_image, save_image
 from .utils import ensure_dir
@@ -29,6 +30,7 @@ FACE_MODES = {"face", "full", "safe", "pretty", "restore", "enhance"}
 
 MAX_INPUT_LONG_SIDE = int(os.getenv("MAX_INPUT_LONG_SIDE", "3600"))
 MAX_OUTPUT_PIXELS = int(os.getenv("MAX_OUTPUT_PIXELS", str(40_000_000)))
+AUTO_2X_MAX_INPUT_PIXELS = int(os.getenv("AUTO_2X_MAX_INPUT_PIXELS", str(3_000_000)))
 
 
 class RestorePipeline:
@@ -212,13 +214,39 @@ class RestorePipeline:
             else:
                 result = self.restore_faces_gfpgan(result, applied_weight)
 
-        if mode != "face" and upscale > 1:
-            result = self._upscale_pipeline.upscale(result, upscale)
+        height, width = result.shape[:2]
+        effective_upscale = resolve_effective_upscale(
+            width,
+            height,
+            upscale,
+            AUTO_2X_MAX_INPUT_PIXELS,
+            dedicated_upscale_mode=mode == "upscale",
+        )
+        if effective_upscale != upscale:
+            logger.info(
+                "automatic upscale policy changed x%d to x%d for %dx%d input",
+                upscale,
+                effective_upscale,
+                width,
+                height,
+            )
+
+        if mode != "face" and effective_upscale > 1:
+            result = self._upscale_pipeline.upscale(result, effective_upscale)
 
         result = self._cap_output_pixels(result, MAX_OUTPUT_PIXELS)
 
         output_path = Path(output_path)
         save_image(output_path, result, quality=output_quality)
+        output_height, output_width = result.shape[:2]
+        logger.info(
+            "saved restored image %dx%d, %d bytes, quality=%d, upscale=x%d",
+            output_width,
+            output_height,
+            output_path.stat().st_size,
+            output_quality,
+            effective_upscale,
+        )
         return output_path
 
 

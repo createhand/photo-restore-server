@@ -83,7 +83,7 @@ def load_image(path: str | Path) -> np.ndarray:
     return image
 
 
-def save_image(path: str | Path, image_bgr: np.ndarray, quality: int = 92) -> None:
+def save_image(path: str | Path, image_bgr: np.ndarray, quality: int = 90) -> None:
     ensure_dir(Path(path).parent)
     suffix = Path(path).suffix.lower()
     params: list[int] = []

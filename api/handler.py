@@ -16,7 +16,7 @@ Serverless는 요청이 없으면 0으로 스케일 다운되므로(scale-to-zer
   - face_weight (float|None): 0.0~1.0 (있으면 fidelity보다 우선)
   - bg_model (str): auto|swinir|light|none (기본 auto)
   - format (str): jpg|jpeg|png|webp (기본 jpg)
-  - quality (int): 1~100 (기본 92)
+  - quality (int): 1~100 (기본 90)
 
 출력(output):
   - image_base64 (str): 복원 결과 이미지(base64, 접두사 없음)
@@ -117,9 +117,9 @@ def handler(event: dict) -> dict:
             output_format = "jpg"
 
         try:
-            quality = int(job_input.get("quality", 92))
+            quality = int(job_input.get("quality", 90))
         except (TypeError, ValueError):
-            quality = 92
+            quality = 90
         quality = max(1, min(100, quality))
 
         output_suffix, media_type = OUTPUT_FORMATS[output_format]
