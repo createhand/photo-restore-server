@@ -11,6 +11,12 @@ import torch
 from gfpgan import GFPGANer
 
 from .codeformer import CodeFormerRestorer
+from .model_policy import (
+    STRONG_MODES,
+    choose_background_model,
+    choose_face_model,
+    choose_face_weight,
+)
 from .sizing import resolve_effective_upscale
 from .swinir import SwinIRPipeline
 from .upscale import UpscalePipeline, load_image, save_image
@@ -22,8 +28,6 @@ VALID_MODES = {"face", "upscale", "full", "safe", "pretty", "restore", "enhance"
 VALID_FACE_MODELS = {"auto", "gfpgan", "codeformer"}
 VALID_BG_MODELS = {"auto", "swinir", "light", "none"}
 
-# Modes that run the strong "pretty" preset.
-STRONG_MODES = {"pretty", "enhance"}
 # Modes that touch the whole image, not just faces.
 BACKGROUND_MODES = {"full", "safe", "pretty", "restore", "enhance"}
 FACE_MODES = {"face", "full", "safe", "pretty", "restore", "enhance"}
@@ -31,6 +35,11 @@ FACE_MODES = {"face", "full", "safe", "pretty", "restore", "enhance"}
 MAX_INPUT_LONG_SIDE = int(os.getenv("MAX_INPUT_LONG_SIDE", "3600"))
 MAX_OUTPUT_PIXELS = int(os.getenv("MAX_OUTPUT_PIXELS", str(40_000_000)))
 AUTO_2X_MAX_INPUT_PIXELS = int(os.getenv("AUTO_2X_MAX_INPUT_PIXELS", str(3_000_000)))
+
+try:
+    DEFAULT_CODEFORMER_WEIGHT = float(os.getenv("DEFAULT_CODEFORMER_WEIGHT", "0.85"))
+except ValueError:
+    DEFAULT_CODEFORMER_WEIGHT = 0.85
 
 
 class RestorePipeline:
@@ -106,38 +115,27 @@ class RestorePipeline:
         )
         return sharpened
 
-    def _resolve_face_model(self, face_model: str, mode: str) -> str:
-        if face_model != "auto":
-            return face_model
-        # Strong presets prefer CodeFormer when its weights are available.
-        if mode in STRONG_MODES and CodeFormerRestorer.find_model_path(self.model_dir):
-            return "codeformer"
-        return "gfpgan"
+    def _resolve_face_model(self, face_model: str) -> str:
+        return choose_face_model(
+            face_model,
+            CodeFormerRestorer.find_model_path(self.model_dir) is not None,
+        )
 
-    def _resolve_bg_model(self, bg_model: str, mode: str) -> str:
-        if bg_model != "auto":
-            return bg_model
-        if mode in STRONG_MODES and SwinIRPipeline.find_model_path(self.model_dir):
-            return "swinir"
-        return "light"
+    def _resolve_bg_model(self, bg_model: str) -> str:
+        return choose_background_model(
+            bg_model,
+            SwinIRPipeline.find_model_path(self.model_dir) is not None,
+        )
 
     @staticmethod
     def _resolve_face_weight(face_model: str, mode: str, fidelity: float, face_weight: float | None) -> float:
-        if face_weight is not None:
-            return float(np.clip(face_weight, 0.0, 1.0))
-        if face_model == "codeformer":
-            # CodeFormer: low w = stronger restoration, high w = closer to input.
-            if mode == "safe":
-                return max(fidelity, 0.8)
-            if mode in STRONG_MODES:
-                return min(fidelity, 0.6)
-            return fidelity
-        # GFPGAN keeps the original preset behaviour.
-        if mode == "safe":
-            return min(fidelity, 0.5)
-        if mode in STRONG_MODES:
-            return max(fidelity, 0.85)
-        return fidelity
+        return choose_face_weight(
+            face_model,
+            mode,
+            fidelity,
+            face_weight,
+            DEFAULT_CODEFORMER_WEIGHT,
+        )
 
     @staticmethod
     def _shrink_to_long_side(image_bgr: np.ndarray, long_side: int) -> np.ndarray:
@@ -193,10 +191,11 @@ class RestorePipeline:
         image = load_image(input_path)
         result = self._shrink_to_long_side(image, MAX_INPUT_LONG_SIDE)
 
-        resolved_face_model = self._resolve_face_model(face_model, mode)
-        resolved_bg_model = self._resolve_bg_model(bg_model, mode)
+        resolved_face_model = self._resolve_face_model(face_model)
+        resolved_bg_model = self._resolve_bg_model(bg_model)
 
         if mode in BACKGROUND_MODES:
+            logger.info("background restoration model=%s (requested=%s)", resolved_bg_model, bg_model)
             if resolved_bg_model == "swinir":
                 result = self._swinir.restore(result, keep_size=True)
             elif resolved_bg_model == "light":
@@ -209,6 +208,12 @@ class RestorePipeline:
 
         if mode in FACE_MODES:
             applied_weight = self._resolve_face_weight(resolved_face_model, mode, fidelity, face_weight)
+            logger.info(
+                "face restoration model=%s (requested=%s), weight=%.2f",
+                resolved_face_model,
+                face_model,
+                applied_weight,
+            )
             if resolved_face_model == "codeformer":
                 result = self._codeformer.restore(result, applied_weight)
             else:

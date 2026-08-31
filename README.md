@@ -78,7 +78,7 @@ mkdir -p api/models
 ```
 
 모델 파일명은 코드와 정확히 일치해야 합니다. CodeFormer/SwinIR 가중치가 없으면
-`pretty`/`enhance` 모드는 기존 GFPGAN + 경량 보정으로 동작하고, `face_model=codeformer`
+`auto` 설정은 기존 GFPGAN + 경량 보정으로 동작하고, `face_model=codeformer`
 또는 `bg_model=swinir`를 명시적으로 요청한 경우에만 에러를 반환합니다.
 
 ## 실행 방법
@@ -128,7 +128,7 @@ curl -X POST http://localhost:8010/restore \
 -F "file=@test.jpg" \
 -F "mode=enhance" \
 -F "face_model=codeformer" \
--F "face_weight=0.5" \
+-F "face_weight=0.85" \
 -F "bg_model=swinir" \
 -F "upscale=2" \
 --output restored.jpg
@@ -248,17 +248,17 @@ PHOTO_RESTORE_TIMEOUT_MS=120000
 
 #### face_model 동작
 
-- `auto`: `pretty`/`enhance` 모드에서 CodeFormer 가중치가 있으면 CodeFormer, 그 외에는 GFPGAN
+- `auto`: CodeFormer 가중치가 있으면 CodeFormer, 없으면 GFPGAN
 - `gfpgan`: 항상 GFPGAN 사용
 - `codeformer`: 항상 CodeFormer 사용 (가중치 없으면 에러)
 
 CodeFormer의 `face_weight`는 낮을수록 강한 복원, 높을수록 원본 유지입니다.
-`face_weight`를 지정하지 않으면 모드 preset에 따라 자동 결정됩니다
-(CodeFormer 기준 `pretty`/`enhance`는 0.6 이하, `safe`는 0.8 이상).
+지정하지 않으면 원래 얼굴을 보존하도록 기본 `0.85`가 적용되며,
+`DEFAULT_CODEFORMER_WEIGHT` 환경 변수로 조정할 수 있습니다.
 
 #### bg_model 동작 (`full`/`safe`/`pretty`/`restore`/`enhance` 모드에서 적용)
 
-- `auto`: `pretty`/`enhance` 모드에서 SwinIR 가중치가 있으면 SwinIR, 그 외에는 `light`
+- `auto`: SwinIR 가중치가 있으면 SwinIR, 없으면 `light`
 - `swinir`: SwinIR 전체 이미지 복원 (denoise, JPEG artifact 제거, 가중치 없으면 에러)
 - `light`: CLAHE + denoise + sharpen 경량 보정 (기존 동작)
 - `none`: 배경 처리 생략
@@ -283,6 +283,7 @@ CodeFormer의 `face_weight`는 낮을수록 강한 복원, 높을수록 원본 �
 - SwinIR은 기본 `SWINIR_TILE=256`, `SWINIR_TILE_OVERLAP=32`로 타일 처리합니다. OOM이 나면 `SWINIR_TILE`을 `128`로 낮추세요.
 - `MAX_INPUT_LONG_SIDE=3600`: 장변이 이 값보다 큰 입력은 작업용으로 축소합니다. `0`이면 비활성화됩니다.
 - `MAX_OUTPUT_PIXELS=40000000`: 최종 출력이 이 픽셀 수를 넘으면 자동 축소합니다. `0`이면 비활성화됩니다.
+- `DEFAULT_CODEFORMER_WEIGHT=0.85`: `face_weight`를 생략했을 때 원래 얼굴 특징을 보존하는 정도입니다.
 
 ## 워커 구조
 
@@ -303,7 +304,7 @@ CodeFormer의 `face_weight`는 낮을수록 강한 복원, 높을수록 원본 �
 
 ## 주의사항
 
-- 이 서버는 GFPGAN + Real-ESRGAN을 기본으로 사용하고, 가중치가 있으면 CodeFormer + SwinIR을 추가로 사용합니다.
+- 이 서버는 설치된 경우 CodeFormer + SwinIR을 우선 사용하고, 가중치가 없으면 GFPGAN + 경량 보정으로 대체합니다.
 - SUPIR, Redis, Celery, DB는 현재 구현에 포함되지 않습니다.
 - 모델 가중치 파일은 라이선스와 배포 정책에 맞게 직접 준비해야 합니다.
 - CodeFormer 아키텍처 코드(`api/pipelines/archs/`)는 S-Lab License 1.0 (비상업용) 하에 배포되는 원본 저장소에서 가져온 것입니다. 상업적 사용 시 라이선스를 확인하세요.
